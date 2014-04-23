@@ -1,0 +1,25 @@
+{
+  "name"           : "kumoapp-tsrp"
+, "version"        : "0.1.0"
+, "description"    : "KumnoApp to TSRP gateway"
+, "author"         : {
+    "name"         : "Marshall Rose"
+  , "email"        : "mrose17@gmail.com"
+  }
+, "repository"     : {
+    "type"         : "git"
+  , "url"          : "https://github.com/TheThingSystem/node-kumoapp-tsrp.git"
+  } 
+, "bugs"           : {
+    "url"          : "https://github.com/TheThingSystem/node-kumoapp-tsrp/issues"
+  }
+, "dependencies"   : {
+    "mathjs"       : "0.20.0"
+  }
+, "keywords"       : [ "KumoAPp", "TSRP"  ]
+, "main"           : "./kumoapp-tsrp.js"
+, "engines"        : {
+    "node"         : ">=0.8"
+  }
+, "readmeFilename" : "README.md"
+}
