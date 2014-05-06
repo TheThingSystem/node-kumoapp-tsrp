@@ -1,7 +1,10 @@
-var config = require('./kumoapp-params').config
+var params = require('./kumoapp-params')
+  , config = params.config
+  , types  = params.props
   , dgram  = require('dgram')
   , http   = require('http')
   , mathjs = (require('mathjs'))()
+  , util   = require('util')
   ;
 
 
@@ -10,15 +13,21 @@ var portno = config.portno
   ;
 
 
-var firstSeen = {};
+var tags      = {};
 
 var reqNo = 0;
 
 var maker = function(props) {
-  var f, info, message, now, prop, protos, status;
+  var f, info, message, now, prop, protos, status, type;
 
-require('util').inspect(props, { depth: null });
+  if (typeof props['0'] !== 'undefined') props.type = props['0'];
   if (!props.type) throw new Error('missing "type" parameter');
+
+  for (type in types) if (types.hasOwnProperty(type)) if (typeof props[types[type].abbrev] !== 'undefined') {
+    props[type] = props[types[type].abbrev];
+  }
+  if (!tags[props.uuid]) tags[props.uuid] = {};
+
   protos = { 12 : { deviceType : '/device/sensor/wirelesstag/motion'
                   , name       : 'Motion Sensor'
                   , status     : [ ]
@@ -80,11 +89,11 @@ require('util').inspect(props, { depth: null });
   if (!protos) throw new Error('unknown type: ' + props.type);
 
   now = new Date().getTime();
-  if (!firstSeen[props.uuid]) firstSeen[props.uuid] = now;
+  if (!tags[props.uuid].firstSeen) tags[props.uuid].firstSeen = now;
 
   f = { eventState   : function() { var eventState = props.eventState.toString();
 
-                                     if (!!protos.properties.armed) info.armed = props.eventState !== '0' ? 'true' : false;
+                                     if (!!protos.properties.armed) info.armed = eventState !== '0' ? 'true' : false;
                                      if (!!protos.properties.state) {
 // state, motion,
 // moved=2, opened=3, closed=4, detected movement=5, timedout = 6
@@ -101,16 +110,14 @@ require('util').inspect(props, { depth: null });
 // ...g
                                    }
 
-      , temperature   : function() { var temperature = parseInt(props.temperature, 10);
-
-                                     if ((!isNaN(temperature)) && (!!protos.properties.temperature)) {
-                                       info.temperature = temperature;
+      , temperature   : function() { if ((!isNaN(props.temperature)) && (!!protos.properties.temperature)) {
+                                       info.temperature = props.temperature;
                                      }
                                    }
 
-      , moisture      : function() { var moisture = parseInt(props.moisture, 10);
-
-                                     if ((!isNaN(moisture)) && (!!protos.properties.humidity)) info.humidity = moisture;
+      , moisture      : function() { if ((!isNaN(props.moisture)) && (!!protos.properties.humidity)) {
+                                       info.humidity = props.moisture;
+                                     }
                                    }
 
       , fanOn         : function() { if (!protos.properties.hvac) return;
@@ -139,7 +146,7 @@ require('util').inspect(props, { depth: null });
                                      if ((!isNaN(txpwr)) && (txpwr > 0) && (txpwr <= 255)) {
                                        rssi -= 20 * mathjs.log(txpwr / 255, 10);
                                      }
-                                     info.rssi = rssi;
+                                     info.rssi = rssi.toFixed(0);
                                    }
         };
 
@@ -147,37 +154,38 @@ require('util').inspect(props, { depth: null });
   for (prop in props) if (props.hasOwnProperty(prop)) if (!!f[prop]) (f[prop])();
 
   reqNo++;
-  message = { path: '/api/v1/thing/reporting', requestID: reqNo.toString() };
-  message[protos.deviceType] = { prototype                      :
-                                 { device                       :
-                                   { name                       : protos.name
-                                   , maker                      : 'CAO Gadgets LLC'
-                                   }
-                                 , name                         : true
-                                 , status                       : protos.status.concat([ 'present', 'absent', 'recent' ])
-                                 , properties                   : protos.properties
-                                 }
-                               , instances                      :
-                                 [
-                                   { name                       : props.name
-                                   , status                     : status || 'present'
-                                   , unit                       :
-                                     { serial                   : props.uuid
-                                     , udn                      : props.uuid
-                                     }
-                                   , info                       : protos.info
-                                   , uptime                     : now - firstSeen[props.uuid]
-                                   }
-                                 ]
-                               };
+  message = { path: '/api/v1/thing/reporting', requestID: reqNo.toString(), things: {} };
+  message.things[protos.deviceType] = { prototype                      :
+                                        { device                       :
+                                          { name                       : protos.name
+                                          , maker                      : 'CAO Gadgets LLC'
+                                          }
+                                        , name                         : true
+                                        , status                       : protos.status.concat([ 'present', 'absent', 'recent' ])
+                                        , properties                   : protos.properties
+                                        }
+                                      , instances                      :
+                                        [
+                                          { name                       : props.name
+                                          , status                     : status || 'present'
+                                          , unit                       :
+                                            { serial                   : props.uuid
+                                            , udn                      : props.uuid
+                                            }
+                                          , info                       : info
+                                          , uptime                     : now - tags[props.uuid].firstSeen
+                                          }
+                                        ]
+                                      };
 
-require('util').inspect(message, { depth: null });
+console.log('PACKET');
+console.log(util.inspect(message, { depth: null }));
   return message;
 };
 
 
 http.createServer(function(request, response) {
-  var body;
+  var body = '';
 
   var done = function(code, s, ct) {
     if (code === 405) {
@@ -187,17 +195,17 @@ http.createServer(function(request, response) {
 
     if (!s) return response.end();
 
-    response.writeHead(code, { 'Body-Type': ct || 'application/json' });
+    response.writeHead(code, { 'Content-Type': ct || 'application/json' });
     response.end(s);
   };
 
   var loser = function(err) {
+    console.log(util.inspect(err, { depth: null }));
     return done(200, JSON.stringify({ error: err }));
   };
 
   if (request.method !== 'PUT') return done(405);
 
-  body = '';
   request.on('data', function(data) {
     body += data.toString();
   }).on('close', function() {
@@ -206,11 +214,12 @@ http.createServer(function(request, response) {
     var packet;
 
     try { packet = new Buffer(JSON.stringify(maker(JSON.parse(body)))); } catch(ex) { return loser(ex); }
+    if (!packet) return done(200);
 
-    tsrp.send(packet, 0, packet.length, tsrp.ipaddr, tsrp.portno, function(err, octets) { /* jshint unused: false */
+    tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, function(err, octets) {/* jshint unused: false */
       if (!!err) return loser(err);
 
-      console.log('>>> sent ' + octets + ' octets');
+//    console.log('>>> sent ' + octets + ' octets');
     });
 
     done(200);
@@ -229,6 +238,7 @@ tsrp.dgram = dgram.createSocket('udp4').on('error', function(err) {
   var address = this.address();
 
   console.log('bound to multicast udp://' + (address.address !== '0.0.0.0' ? address.address : '*') + ':' + address.port);
+  try { this.setMulticastLoopback(true); } catch(ex) { console.log('dgram loopback: ' + ex.message); }
 });
 tsrp.dgram.bind(0, function() {
   this.addMembership(tsrp.ipaddr);
