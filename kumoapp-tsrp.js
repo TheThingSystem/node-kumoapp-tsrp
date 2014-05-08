@@ -77,7 +77,7 @@ var maker = function(props) {
                                  }
                   }
 
-           , 72 : { deviceType : '/device/sensor/wirelesstag/presence'
+           , 72 : { deviceType : '/device/sensor/wirelesstag/motion'
                   , name       : 'PIR KumoSensor'
                   , status     : [ 'motion', 'quiet' ]
                   , properties : { temperature : 'celcius'
@@ -90,6 +90,7 @@ var maker = function(props) {
 
   now = new Date().getTime();
   if (!tags[props.uuid].firstSeen) tags[props.uuid].firstSeen = now;
+  tags[props.uuid].lastSeen = now;
 
   f = { eventState   : function() { var eventState = props.eventState.toString();
 
