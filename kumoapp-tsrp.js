@@ -179,10 +179,37 @@ var maker = function(props) {
                                         ]
                                       };
 
-console.log('PACKET');
-console.log(util.inspect(message, { depth: null }));
+// console.log('PACKET');
+// console.log(util.inspect(message, { depth: null }));
+  tags[props.uuid].packet = message;
   return message;
 };
+
+setInterval(function() {
+  var diff, now, packet, uuid;
+
+  var retry = function(err, octets) {/* jshint unused: false */
+      if (!!err) return console.log('TSRP retry: ' + err.message);
+
+//    console.log('>>> sent ' + octets + ' octets');
+  };
+
+  now = new Date().getTime();
+  for (uuid in tags) if (tags.hasOwnProperty(uuid)) {
+    if (!tags[uuid].packet) continue;
+
+    diff = now -tags[uuid].lastSeen;
+    if (diff >= (32 * 60 * 1000)) {
+//    console.log('>>> deleting packet for ' + uuid);
+
+      delete(tags[uuid].packet);
+      continue;
+    }
+
+    packet = new Buffer(JSON.stringify(tags[uuid].packet));
+    tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, retry);
+  }
+}, 45 * 1000);
 
 
 http.createServer(function(request, response) {
