@@ -1,5 +1,5 @@
-exports.config = { ipaddr: '192.168.1.72'
-                 , portno: 8885
+exports.config = { ipaddr         : '192.168.1.72'
+                 , portno         : 8885
                  };
 
 exports.props  = { uuid           : { types: [ 12, 13, 32, 52, 62, 72 ], abbrev: 'a' }
