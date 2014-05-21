@@ -14,9 +14,9 @@
     "url"          : "https://github.com/TheThingSystem/node-kumoapp-tsrp/issues"
   }
 , "dependencies"   : {
-    "mathjs"       : "0.20.0"
+    "mathjs"       : "0.21.0"
   }
-, "keywords"       : [ "KumoAPp", "TSRP"  ]
+, "keywords"       : [ "KumoApp", "TSRP"  ]
 , "main"           : "./kumoapp-tsrp.js"
 , "engines"        : {
     "node"         : ">=0.8"
