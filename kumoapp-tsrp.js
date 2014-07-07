@@ -18,7 +18,7 @@ var tags  = {};
 var reqNo = 0;
 
 var maker = function(props) {
-  var f, info, message, now, prop, protos, status, type;
+  var f, info, message, now, prop, protos, type;
 
   if (typeof props['0'] !== 'undefined') props.type = props['0'];
   for (type in types) if (types.hasOwnProperty(type)) if (typeof props[types[type].abbrev] !== 'undefined') {
@@ -39,26 +39,27 @@ var maker = function(props) {
 
   protos = { 12 : { deviceType : '/device/sensor/wirelesstag/motion'
                   , name       : 'Motion Sensor'
-                  , status     : [ ]
                   , properties : { temperature : 'celcius'
                                  , armed       : [ 'true', 'false' ]
+                                 , motion      : [ 'detected', 'absent' ]
+                                 , state       : [ 'opened', 'closed' ]
                                  , rssi        : 's8'
                                  }
                   }
 
            , 13 : { deviceType : '/device/climate/wirelesstag/meteo'
                   , name       : 'Temperature/Humidity Sensor'
-                  , status     : [ ]
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
                                  , armed       : [ 'true', 'false' ]
+                                 , motion      : [ 'detected', 'absent' ]
+                                 , state       : [ 'opened', 'closed' ]
                                  , rssi        : 's8'
                                  }
                   }
 
            , 32 : { deviceType : '/device/sensor/wirelesstag/moisture'
                   , name       : 'Water/Soil moisture sensor'
-                  , status     : [ ]
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
                                  , water       : [ 'detected', 'absent' ]
@@ -68,7 +69,6 @@ var maker = function(props) {
 
            , 52 : { deviceType : '/device/sensor/wirelesstag/reed'
                   , name       : 'Door/window KumoSensor'
-                  , status     : [ 'open', 'closed', 'moving' ]
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
                                  , armed       : [ 'true', 'false' ]
@@ -78,7 +78,6 @@ var maker = function(props) {
 
            , 62 : { deviceType : '/device/climate/kumostat/control'
                   , name       : 'Kumostat'
-                  , status     : [ ]
                   , properties : { temperature     : 'celcius'
                                  , humidity        : 'percentage'
                                  , hvac            : [ 'cool', 'heat', 'fan', 'off' ]
@@ -89,9 +88,10 @@ var maker = function(props) {
 
            , 72 : { deviceType : '/device/sensor/wirelesstag/motion'
                   , name       : 'PIR KumoSensor'
-                  , status     : [ 'motion', 'quiet' ]
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
+                                 , armed       : [ 'true', 'false' ]
+                                 , motion      : [ 'detected', 'absent' ]
                                  , rssi        : 's8'
                                  }
                   }
@@ -104,21 +104,18 @@ var maker = function(props) {
 
   f = { eventState   : function() { var eventState = props.eventState.toString();
 
-                                     if (!!protos.properties.armed) info.armed = eventState !== '0' ? 'true' : 'false';
-                                     if (!!protos.properties.state) {
-// state, motion
-// moved=2, opened=3, closed=4, detected movement=5, timedout = 6
-                                     status = { 2 : 'motion'
-                                              , 3 : ''
-                                              , 4 : ''
-                                              , 5 : ''
-                                              , 6 : 'recent'
-                                              };
+                                     if (!!protos.properties.armed) {
+                                       info.armed = eventState === '0' ? 'false' : 'true';
+                                       if ((!!protos.properties.motion) && (info.armed === 'true')) {
+                                         info.motion = eventState == '5' ? 'detected' : 'absent';
+                                         info.state = { '3': 'opened', '4': 'closed' }[eventState];
+                                         if (typeof info.state === 'undefined') delete(info.state);
+                                       }
                                      }
                                    }
 
       , waterDetected : function() {
-                                     info.water = 'detected';
+                                     info.water = props.waterDetected ? 'detected' : 'absent';
                                    }
 
       , temperature   : function() { if ((!isNaN(props.temperature))
@@ -166,7 +163,6 @@ var maker = function(props) {
         };
 
   info = { lastSample: now };
-  if (props.type === 32) info.water = 'absent';
   for (prop in props) if (props.hasOwnProperty(prop)) if (!!f[prop]) (f[prop])();
   for (prop in info) if ((info.hasOwnProperty(prop)) && (!isNaN(info[prop]))) info[prop] = parseFloat(info[prop]);
 
@@ -178,13 +174,13 @@ var maker = function(props) {
                                           , maker                      : 'CAO Gadgets LLC'
                                           }
                                         , name                         : true
-                                        , status                       : protos.status.concat([ 'present', 'absent', 'recent' ])
+                                        , status                       : [ 'present', 'absent', 'recent' ]
                                         , properties                   : protos.properties
                                         }
                                       , instances                      :
                                         [
                                           { name                       : props.name
-                                          , status                     : status || 'present'
+                                          , status                     : 'present'
                                           , unit                       :
                                             { serial                   : props.uuid
                                             , udn                      : props.uuid
@@ -195,7 +191,7 @@ var maker = function(props) {
                                         ]
                                       };
 
-// console.log('PACKET');
+// console.log('>>> PACKET');
 // console.log(util.inspect(message, { depth: null }));
   tags[props.uuid].packet = message;
   return message;
@@ -257,6 +253,7 @@ http.createServer(function(request, response) {
   }).on('end', function() {
     var packet;
 
+//    console.log('>>> recv: ' + body);
     try { packet = new Buffer(JSON.stringify(maker(JSON.parse(body)))); } catch(ex) { return loser(ex); }
     if (!packet) return done(200);
 
