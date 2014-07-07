@@ -67,11 +67,12 @@ var maker = function(props) {
                                  }
                   }
 
-           , 52 : { deviceType : '/device/sensor/wirelesstag/reed'
+           , 52 : { deviceType : '/device/sensor/wirelesstag/motion'
                   , name       : 'Door/window KumoSensor'
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
                                  , armed       : [ 'true', 'false' ]
+                                 , motion      : [ 'detected', 'absent' ]
                                  , rssi        : 's8'
                                  }
                   }
