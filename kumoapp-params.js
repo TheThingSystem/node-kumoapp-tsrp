@@ -1,5 +1,6 @@
-exports.config = { ipaddr         : '192.168.1.72'
+exports.config = { ipaddr         : '192.168.1.83'
                  , portno         : 8885
+                 , tagManager     : '2CB46EBEF306'
                  };
 
 exports.props  = { uuid           : { types: [ 12, 13, 32, 52, 62, 72 ], abbrev: 'a' }
@@ -21,4 +22,12 @@ exports.props  = { uuid           : { types: [ 12, 13, 32, 52, 62, 72 ], abbrev:
                  , rssi           : { types: [ 12, 13, 32, 52, 62, 72 ], abbrev: 'q' }
                  , txpwr          : { types: [ 12, 13, 32, 52, 62, 72 ], abbrev: 'r' }
                  , waterDetected  : { types: [         32             ], abbrev: 's' }
+                 };
+
+exports.names  = { '12'           : 'motion'
+                 , '13'           : 'motion/RH'
+                 , '32'           : 'water'
+                 , '52'           : 'reed'
+                 , '62'           : 'kumostat'
+                 , '72'           : 'PIR'
                  };

@@ -13,7 +13,7 @@ var portno = config.portno
   ;
 
 
-var tags      = {};
+var tags  = {};
 
 var reqNo = 0;
 
@@ -21,12 +21,21 @@ var maker = function(props) {
   var f, info, message, now, prop, protos, status, type;
 
   if (typeof props['0'] !== 'undefined') props.type = props['0'];
-  if (!props.type) throw new Error('missing "type" parameter');
-
   for (type in types) if (types.hasOwnProperty(type)) if (typeof props[types[type].abbrev] !== 'undefined') {
     props[type] = props[types[type].abbrev];
   }
+
+  if (!props.uuid) throw new Error('missing "uuid" parameter');
   if (!tags[props.uuid]) tags[props.uuid] = {};
+  info = tags[props.uuid].info || {};
+  for (prop in props) if (props.hasOwnProperty(prop)) {
+    info[prop] = props[prop];
+  }
+  tags[props.uuid].info = info;
+  for (prop in { type: true, name: true, rssi: true, txpwr: true }) {
+    if (typeof props[prop] === 'undefined') props[prop] = info[prop];
+    if (typeof props[prop] === 'undefined') throw new Error('missing "' + prop + '" parameter');
+  }
 
   protos = { 12 : { deviceType : '/device/sensor/wirelesstag/motion'
                   , name       : 'Motion Sensor'
@@ -52,6 +61,7 @@ var maker = function(props) {
                   , status     : [ ]
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
+                                 , water       : [ 'detected', 'absent' ]
                                  , rssi        : 's8'
                                  }
                   }
@@ -94,9 +104,9 @@ var maker = function(props) {
 
   f = { eventState   : function() { var eventState = props.eventState.toString();
 
-                                     if (!!protos.properties.armed) info.armed = eventState !== '0' ? 'true' : false;
+                                     if (!!protos.properties.armed) info.armed = eventState !== '0' ? 'true' : 'false';
                                      if (!!protos.properties.state) {
-// state, motion,
+// state, motion
 // moved=2, opened=3, closed=4, detected movement=5, timedout = 6
                                      status = { 2 : 'motion'
                                               , 3 : ''
@@ -108,15 +118,19 @@ var maker = function(props) {
                                    }
 
       , waterDetected : function() {
-// ...g
+                                     info.water = 'detected';
                                    }
 
-      , temperature   : function() { if ((!isNaN(props.temperature)) && (!!protos.properties.temperature)) {
+      , temperature   : function() { if ((!isNaN(props.temperature))
+                                             && (props.temperature !== '0.00')
+                                             && (!!protos.properties.temperature)) {
                                        info.temperature = props.temperature;
                                      }
                                    }
 
-      , moisture      : function() { if ((!isNaN(props.moisture)) && (!!protos.properties.humidity)) {
+      , moisture      : function() { if ((!isNaN(props.moisture))
+                                             && (props.moisture !== '0.00')
+                                             && (!!protos.properties.humidity)) {
                                        info.humidity = props.moisture;
                                      }
                                    }
@@ -151,8 +165,10 @@ var maker = function(props) {
                                    }
         };
 
-  info = {};
+  info = { lastSample: now };
+  if (props.type === 32) info.water = 'absent';
   for (prop in props) if (props.hasOwnProperty(prop)) if (!!f[prop]) (f[prop])();
+  for (prop in info) if ((info.hasOwnProperty(prop)) && (!isNaN(info[prop]))) info[prop] = parseFloat(info[prop]);
 
   reqNo++;
   message = { path: '/api/v1/thing/reporting', requestID: reqNo.toString(), things: {} };
@@ -198,7 +214,7 @@ setInterval(function() {
   for (uuid in tags) if (tags.hasOwnProperty(uuid)) {
     if (!tags[uuid].packet) continue;
 
-    diff = now -tags[uuid].lastSeen;
+    diff = now - tags[uuid].lastSeen;
     if (diff >= (32 * 60 * 1000)) {
 //    console.log('>>> deleting packet for ' + uuid);
 
