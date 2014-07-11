@@ -58,7 +58,7 @@ var maker = function(props) {
                                  }
                   }
 
-           , 32 : { deviceType : '/device/sensor/wirelesstag/moisture'
+           , 32 : { deviceType : '/device/sensor/wirelesstag/water'
                   , name       : 'Water/Soil moisture sensor'
                   , properties : { temperature : 'celcius'
                                  , humidity    : 'percentage'
