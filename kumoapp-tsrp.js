@@ -35,14 +35,14 @@ var KumoAppTSRP = function(params) {
     var diff, now, uuid;
 
     now = new Date().getTime();
-    for (uuid in self.tags) if ((self.tags.hasOwnProperty(uuid)) && (!!self.tags[uuid].packet)) {
+    for (uuid in self.tags) if ((self.tags.hasOwnProperty(uuid)) && (!!self.tags[uuid].message)) {
       diff = now - self.tags[uuid].lastSeen;
       if (diff >= (32 * 60 * 1000)) {
-        delete(self.tags[uuid].packet);
+        delete(self.tags[uuid].message);
         continue;
       }
 
-      self.emit('packet', new Buffer(JSON.stringify(self.tags[uuid].packet)));
+      self.emit('message', self.tags[uuid].message);
     }
   }, 45 * 1000);
 };
@@ -228,7 +228,7 @@ KumoAppTSRP.prototype.toTSRP = function(props) {
                                         ]
                                       };
 
-  self.tags[props.uuid].packet = message;
+  self.tags[props.uuid].message = message;
   return message;
 };
 

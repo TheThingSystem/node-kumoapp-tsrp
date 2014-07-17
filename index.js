@@ -12,7 +12,9 @@ var portno = config.portno
   , kumo   = new KumoAppTSRP({ types: params.props })
   ;
 
-kumo.on('packet', function(packet) {
+kumo.on('message', function(message) {
+
+  var packet = new Buffer(JSON.stringify(message));
   tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, function(err, octets) {/* jshint unused: false */
     if (!!err) return console.log(util.inspect(err, { depth: null }));
   });
@@ -47,11 +49,12 @@ http.createServer(function(request, response) {
   }).on('close', function() {
     console.log('http request: premature close');
   }).on('end', function() {
-    var packet;
+    var message, packet;
 
-    try { packet = new Buffer(JSON.stringify(kumo.toTSRP(JSON.parse(body)))); } catch(ex) { return loser(ex); }
-    if (!packet) return done(200);
+    try { message = kumo.toTSRP(JSON.parse(body)); } catch(ex) { return loser(ex); }
+    if (!message) return done(200);
 
+    packet = new Buffer(JSON.stringify(message));
     tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, function(err, octets) {/* jshint unused: false */
       if (!!err) return loser(err);
     });
