@@ -1,5 +1,5 @@
-var params = require('./kumoapp-params')
-  , config = params.config
+var config = require('./kumoapp-config').config
+  , params = require('./kumoapp-params')
   , props  = params.props
   , names  = params.names
   , URL    = 'http://' + config.ipaddr + ':' + config.portno + '/kumoapp';

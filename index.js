@@ -1,6 +1,5 @@
 var KumoAppTSRP = require('./kumoapp-tsrp')
-  , params      = require('./kumoapp-params')
-  , config      = params.config
+  , config      = require('./kumoapp-config').config
   , dgram       = require('dgram')
   , http        = require('http')
   , util        = require('util')
@@ -9,17 +8,15 @@ var KumoAppTSRP = require('./kumoapp-tsrp')
 
 var portno = config.portno
   , tsrp   = { ipaddr: '224.0.9.1', portno: 22601 }
-  , kumo   = new KumoAppTSRP({ types: params.props })
+  , kumo   = new KumoAppTSRP()
   ;
 
 kumo.on('message', function(message) {
-
   var packet = new Buffer(JSON.stringify(message));
   tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, function(err, octets) {/* jshint unused: false */
     if (!!err) return console.log(util.inspect(err, { depth: null }));
   });
 });
-
 
 
 http.createServer(function(request, response) {

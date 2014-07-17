@@ -1,4 +1,5 @@
-var events      = require('events')
+var params      = require('./kumoapp-params')
+  , events      = require('events')
   , mathjs      = (require('mathjs'))()
   , util        = require('util')
   ;
@@ -12,18 +13,16 @@ var DEFAULT_LOGGER = { error   : function(msg, props) { console.log(msg); if (!!
                      };
 
 
-var KumoAppTSRP = function(params) {
+var KumoAppTSRP = function(options) {
   var k;
 
   var self = this;
 
-  if (!(self instanceof KumoAppTSRP)) return new KumoAppTSRP(params);
+  if (!(self instanceof KumoAppTSRP)) return new KumoAppTSRP(options);
 
-  if (!params) params = {};
-  if (!params.types) throw new Error('parameters must include "types"');
-  self.types = params.types;
+  if (!options) options = {};
 
-  self.logger = params.logger  || {};
+  self.logger = options.logger  || {};
   for (k in DEFAULT_LOGGER) {
     if ((DEFAULT_LOGGER.hasOwnProperty(k)) && (typeof self.logger[k] === 'undefined'))  self.logger[k] = DEFAULT_LOGGER[k];
   }
@@ -54,7 +53,7 @@ KumoAppTSRP.prototype.toTSRP = function(props) {
 
   var self = this;
 
-  types = self.types;
+  types = params.props;
 
   if (typeof props['0'] !== 'undefined') props.type = props['0'];
   for (type in types) if (types.hasOwnProperty(type)) if (typeof props[types[type].abbrev] !== 'undefined') {

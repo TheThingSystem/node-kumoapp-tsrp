@@ -1,6 +1,6 @@
 {
   "name"           : "kumoapp-tsrp"
-, "version"        : "0.7.1"
+, "version"        : "0.8.0"
 , "description"    : "KumoApp to TSRP gateway"
 , "author"         : {
     "name"         : "Marshall Rose"
