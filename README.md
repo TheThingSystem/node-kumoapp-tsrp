@@ -51,7 +51,7 @@ Operate
 
 To try it out:
 
-    % node kumoapp-tsrp.js
+    % node index.js
 
 or to run it continuously:
 

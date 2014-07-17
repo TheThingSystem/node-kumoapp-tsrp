@@ -1,24 +1,60 @@
-var params = require('./kumoapp-params')
-  , config = params.config
-  , types  = params.props
-  , dgram  = require('dgram')
-  , http   = require('http')
-  , mathjs = (require('mathjs'))()
-  , util   = require('util')
+var events      = require('events')
+  , mathjs      = (require('mathjs'))()
+  , util        = require('util')
   ;
 
 
-var portno = config.portno
-  , tsrp   = { ipaddr: '224.0.9.1', portno: 22601 }
-  ;
+var DEFAULT_LOGGER = { error   : function(msg, props) { console.log(msg); if (!!props) console.log(props);             }
+                     , warning : function(msg, props) { console.log(msg); if (!!props) console.log(props);             }
+                     , notice  : function(msg, props) { console.log(msg); if (!!props) console.log(props);             }
+                     , info    : function(msg, props) { console.log(msg); if (!!props) console.log(props);             }
+                     , debug   : function(msg, props) { console.log(msg); if (!!props) console.log(props);             }
+                     };
 
 
-var tags  = {};
+var KumoAppTSRP = function(params) {
+  var k;
 
-var reqNo = 0;
+  var self = this;
 
-var maker = function(props) {
-  var f, info, message, now, prop, protos, type;
+  if (!(self instanceof KumoAppTSRP)) return new KumoAppTSRP(params);
+
+  if (!params) params = {};
+  if (!params.types) throw new Error('parameters must include "types"');
+  self.types = params.types;
+
+  self.logger = params.logger  || {};
+  for (k in DEFAULT_LOGGER) {
+    if ((DEFAULT_LOGGER.hasOwnProperty(k)) && (typeof self.logger[k] === 'undefined'))  self.logger[k] = DEFAULT_LOGGER[k];
+  }
+
+  self.tags = {};
+  self.reqNo = 0;
+
+  setInterval(function() {
+    var diff, now, uuid;
+
+    now = new Date().getTime();
+    for (uuid in self.tags) if ((self.tags.hasOwnProperty(uuid)) && (!!self.tags[uuid].packet)) {
+      diff = now - self.tags[uuid].lastSeen;
+      if (diff >= (32 * 60 * 1000)) {
+        delete(self.tags[uuid].packet);
+        continue;
+      }
+
+      self.emit('packet', new Buffer(JSON.stringify(self.tags[uuid].packet)));
+    }
+  }, 45 * 1000);
+};
+util.inherits(KumoAppTSRP, events.EventEmitter);
+
+
+KumoAppTSRP.prototype.toTSRP = function(props) {
+  var f, info, message, now, prop, protos, type, types;
+
+  var self = this;
+
+  types = self.types;
 
   if (typeof props['0'] !== 'undefined') props.type = props['0'];
   for (type in types) if (types.hasOwnProperty(type)) if (typeof props[types[type].abbrev] !== 'undefined') {
@@ -26,12 +62,12 @@ var maker = function(props) {
   }
 
   if (!props.uuid) throw new Error('missing "uuid" parameter');
-  if (!tags[props.uuid]) tags[props.uuid] = {};
-  info = tags[props.uuid].info || {};
+  if (!self.tags[props.uuid]) self.tags[props.uuid] = {};
+  info = self.tags[props.uuid].info || {};
   for (prop in props) if (props.hasOwnProperty(prop)) {
     info[prop] = props[prop];
   }
-  tags[props.uuid].info = info;
+  self.tags[props.uuid].info = info;
   for (prop in { type: true, name: true, rssi: true, txpwr: true }) {
     if (typeof props[prop] === 'undefined') props[prop] = info[prop];
     if (typeof props[prop] === 'undefined') throw new Error('missing "' + prop + '" parameter');
@@ -100,8 +136,8 @@ var maker = function(props) {
   if (!protos) throw new Error('unknown type: ' + props.type);
 
   now = new Date().getTime();
-  if (!tags[props.uuid].firstSeen) tags[props.uuid].firstSeen = now;
-  tags[props.uuid].lastSeen = now;
+  if (!self.tags[props.uuid].firstSeen) self.tags[props.uuid].firstSeen = now;
+  self.tags[props.uuid].lastSeen = now;
 
   f = { eventState   : function() { var eventState = props.eventState.toString();
 
@@ -167,8 +203,8 @@ var maker = function(props) {
   for (prop in props) if (props.hasOwnProperty(prop)) if (!!f[prop]) (f[prop])();
   for (prop in info) if ((info.hasOwnProperty(prop)) && (!isNaN(info[prop]))) info[prop] = parseFloat(info[prop]);
 
-  reqNo++;
-  message = { path: '/api/v1/thing/reporting', requestID: reqNo.toString(), things: {} };
+  self.reqNo++;
+  message = { path: '/api/v1/thing/reporting', requestID: self.reqNo.toString(), things: {} };
   message.things[protos.deviceType] = { prototype                      :
                                         { device                       :
                                           { name                       : protos.name
@@ -187,101 +223,14 @@ var maker = function(props) {
                                             , udn                      : props.uuid
                                             }
                                           , info                       : info
-                                          , uptime                     : now - tags[props.uuid].firstSeen
+                                          , uptime                     : now - self.tags[props.uuid].firstSeen
                                           }
                                         ]
                                       };
 
-// console.log('>>> PACKET');
-// console.log(util.inspect(message, { depth: null }));
-  tags[props.uuid].packet = message;
+  self.tags[props.uuid].packet = message;
   return message;
 };
 
-setInterval(function() {
-  var diff, now, packet, uuid;
 
-  var retry = function(err, octets) {/* jshint unused: false */
-      if (!!err) return console.log('TSRP retry: ' + err.message);
-
-//    console.log('>>> sent ' + octets + ' octets');
-  };
-
-  now = new Date().getTime();
-  for (uuid in tags) if (tags.hasOwnProperty(uuid)) {
-    if (!tags[uuid].packet) continue;
-
-    diff = now - tags[uuid].lastSeen;
-    if (diff >= (32 * 60 * 1000)) {
-//    console.log('>>> deleting packet for ' + uuid);
-
-      delete(tags[uuid].packet);
-      continue;
-    }
-
-    packet = new Buffer(JSON.stringify(tags[uuid].packet));
-    tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, retry);
-  }
-}, 45 * 1000);
-
-
-http.createServer(function(request, response) {
-  var body = '';
-
-  var done = function(code, s, ct) {
-    if (code === 405) {
-      response.writeHead(405, { Allow: 'PUT' });
-      return response.end();
-    }
-
-    if (!s) return response.end();
-
-    response.writeHead(code, { 'Content-Type': ct || 'application/json' });
-    response.end(s);
-  };
-
-  var loser = function(err) {
-    console.log(util.inspect(err, { depth: null }));
-    return done(200, JSON.stringify({ error: err }));
-  };
-
-  if (request.method !== 'PUT') return done(405);
-
-  request.on('data', function(data) {
-    body += data.toString();
-  }).on('close', function() {
-    console.log('http request: premature close');
-  }).on('end', function() {
-    var packet;
-
-//    console.log('>>> recv: ' + body);
-    try { packet = new Buffer(JSON.stringify(maker(JSON.parse(body)))); } catch(ex) { return loser(ex); }
-    if (!packet) return done(200);
-
-    tsrp.dgram.send(packet, 0, packet.length, tsrp.portno, tsrp.ipaddr, function(err, octets) {/* jshint unused: false */
-      if (!!err) return loser(err);
-
-//    console.log('>>> sent ' + octets + ' octets');
-    });
-
-    done(200);
-  });
-}).on('listening', function() {
-  console.log('listening on http://*:' + portno);
-}).on('error', function(err) {
-  console.log('http server: ' + err.message);
-}).listen(portno);
-
-tsrp.dgram = dgram.createSocket('udp4').on('error', function(err) {
-  console.log('dgram sender: ' + err.message);
-}).on('message', function(msg, rinfo) { /* jshint unused: false */
-  console.log('>>> received ' + msg.length + ' octets from ' + JSON.stringify(rinfo));
-}).on('listening', function() {
-  var address = this.address();
-
-  console.log('bound to multicast udp://' + (address.address !== '0.0.0.0' ? address.address : '*') + ':' + address.port);
-  try { this.setMulticastLoopback(true); } catch(ex) { console.log('dgram loopback: ' + ex.message); }
-});
-tsrp.dgram.bind(0, function() {
-  this.addMembership(tsrp.ipaddr);
-});
+module.exports = KumoAppTSRP;
